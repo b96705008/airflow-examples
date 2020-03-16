@@ -25,15 +25,24 @@ def provide_owner():
     return owner
 
 
-def load_files_to_db():
-    print('Loading files to MySQL...')
+# def load_files_to_db():
+#     print('Loading files to MySQL...')
+#     connection = MySqlHook(mysql_conn_id='mysql_default')
+#     connection.run('data/sql/load_sales_data.sql', autocommit=True)
+#     return True
+
+
+def select_monthly_sales():
     connection = MySqlHook(mysql_conn_id='mysql_default')
-    connection.run('data/sql/load_sales_data.sql', autocommit=True)
+    connection.run("""
+        SELECT count(*) FROM airflow_bi.monthly_item_sales;
+    """, autocommit=True)
     return True
 
 
 with DAG('sales_data_etl', 
           default_args=default_args,
+          catchup=False,
           schedule_interval='@daily') as dag:
 
     op_provide_owner = PythonOperator(
@@ -53,12 +62,16 @@ with DAG('sales_data_etl',
         task_id='aggregate_monthly_sales', 
         sql='aggregate_monthly_sales.sql',
         autocommit=True)
+    
+    op_select_monthly_sales = PythonOperator(
+        task_id='select_monthly_sales',
+        python_callable=select_monthly_sales)
 
-    op_send_email = EmailOperator(
-        task_id='send_email',
-        to='roger-airflow@grindr.com',
-        subject='Airflow Sales ETL Finished',
-        html_content=""" <h3>DONE</h3> """,
-        dag=dag)
+    # op_send_email = EmailOperator(
+    #     task_id='send_email',
+    #     to='roger-airflow@grindr.com',
+    #     subject='Airflow Sales ETL Finished',
+    #     html_content=""" <h3>DONE</h3> """,
+    #     dag=dag)
 
-op_provide_owner >> op_create_table >> op_load_files_to_db >> op_aggregate_monthly_sales>> op_send_email
+op_provide_owner >> op_create_table >> op_load_files_to_db >> op_aggregate_monthly_sales >> op_select_monthly_sales

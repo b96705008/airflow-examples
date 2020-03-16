@@ -240,3 +240,5 @@ dmypy.json
 ### Airflow
 logs
 airflow.db
+airflow.cfg
+airflow-*.pid
